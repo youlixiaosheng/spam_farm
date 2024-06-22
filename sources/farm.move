@@ -1,6 +1,7 @@
 module farm::farm {
 
     use std::ascii::{String, string};
+    use sui::sui::SUI;
     use sui::coin::{Self, Coin};
     use sui::balance::{Self, Balance};
     use sui::event;
@@ -21,11 +22,11 @@ module farm::farm {
     const E_REPEATED_HARVEST: u64 = 7;
 
     // ===> special_event Constants <===
-    // 1. No attribute
-    // 2. Double points reward
-    // 3. Double anti-steal rate
-    // 4. Double steal success rate
-    // 5. Steal failure rate 100%
+    // 1. 无属性
+    // 2. 积分奖励 * 2
+    // 3. 防偷率 * 2
+    // 4. 偷取成功率 * 2
+    // 5. 被偷取失败率 100%
     // const NO_SPECIAL_EVENT: u64 = 1;
     const DOUBLE_REWARD: u64 = 2;
     const DOUBLE_ANTI_STEAL: u64 = 3;
@@ -57,33 +58,34 @@ module farm::farm {
     // ===> Structures <===
     public struct FARM has drop {}
 
+
     public struct AdminCap has key {
         id: UID,
     }
 
-    /// Singleton shared object for recording the game state of each epoch.
+    /// 单例共享对象，用于记录每个时代的游戏状态。
     public struct Director has key, store {
         id: UID,
-        paused: bool, // Main switch
-        epoch_games: Table<u64, FarmGame>, // Table keyed by epoch
+        paused: bool, // 总开关
+        epoch_games: Table<u64, FarmGame>, // 键为时代的表
     }
 
-    public struct Crop has store, copy {
-        name: String, // Name
-        epoch: u64, // Planting epoch
-        mature_epoch: u64, // Matures in the next epoch
+    public struct Crop has store , copy{
+        name: String, // 名称
+        epoch: u64, // 种植的纪元
+        mature_epoch: u64, // 下个纪元成熟
         investment: u64,
-        harvestable: bool, // Harvestable or not
-        harvested: bool, // Harvested or not
-        stolen: bool, // Stolen or not
-        token_reward: u64, // Points reward after harvest, distributed proportionally in the next epoch's balance pool
+        harvestable: bool, //是否可收获
+        harvested: bool, //是否已收获
+        stolen: bool, //是否被偷取
+        token_reward: u64, // 积分回报 收割后的奖励 下个纪元按照比例分配 balance_pool
     }
 
     public struct FarmUser has store {
         address: address,
         steal: bool,
         investment: u64,
-        rewards: u64, // Rewards generated when others are caught stealing
+        rewards: u64, // 当其他人进行偷取时被发现, 产生的奖励
         special_event: u64,
         crop: Crop,
     }
@@ -91,7 +93,7 @@ module farm::farm {
     public struct FarmGame has store {
         epoch: u64,
         balance_pool: u64,
-        investments: Balance<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>,
+        investments: Balance<SUI>,
         farm_users: VecMap<address, FarmUser>,
     }
 
@@ -122,7 +124,7 @@ module farm::farm {
             let epoch_game = FarmGame {
                 epoch,
                 balance_pool,
-                investments: coin::into_balance(coin::zero<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>(ctx)),
+                investments: coin::into_balance(coin::zero<SUI>(ctx)),
                 farm_users: vec_map::empty<address, FarmUser>(),
             };
             director.epoch_games.add(epoch, epoch_game);
@@ -130,8 +132,8 @@ module farm::farm {
         return director.epoch_games.borrow_mut(epoch)
     }
 
-    fun create_crop(epoch: u64, investment_value: u64, special_event: u64): Crop {
-        let name = string(b"Spam");
+    fun create_crop(epoch: u64, investment_value: u64, special_event:u64) : Crop {
+        let name = string(b"Sui");
         let mature_epoch = epoch + 1;
         let investment = 0;
         let harvestable = false;
@@ -154,10 +156,10 @@ module farm::farm {
         crop
     }
 
-    fun create_farmer(epoch: u64, address: address, investment_value: u64): FarmUser {
+    fun create_farmer(epoch: u64, address: address, investment_value: u64) : FarmUser {
         let investment = investment_value;
         let rewards = 0;
-        let special_event = 0; // Generate a random event
+        let special_event = 0; // 进行随机生成一个
         let crop = create_crop(epoch, investment_value, special_event);
 
         let steal = false;
@@ -171,39 +173,39 @@ module farm::farm {
         }
     }
 
-    fun get_game_by_epoch(director: &mut Director, epoch: u64): &mut FarmGame {
+    fun get_game_by_epoch(director: &mut Director, epoch: u64) : &mut FarmGame {
         assert!(director.epoch_games.contains(epoch), E_GAME_DOES_NOT_EXIST);
         director.epoch_games.borrow_mut(epoch)
     }
 
-    fun get_farmer_by_epoch(director: &mut Director, epoch: u64, sender: address): &mut FarmUser {
+    fun get_farmer_by_epoch(director: &mut Director, epoch: u64, sender: address) : &mut FarmUser {
         let epoch_game = get_game_by_epoch(director, epoch);
         assert!(vec_map::contains(&epoch_game.farm_users, &sender), E_NOT_INVOLVED_IN_PLANTING);
         epoch_game.farm_users.get_mut(&sender)
     }
 
-    // Planting
+    // 进行种植
     public entry fun planting(
         director: &mut Director,
-        investment: &mut Coin<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>,
+        investment: &mut Coin<SUI>,
         ctx: &mut TxContext)
     {
         let sender = tx_context::sender(ctx);
         let epoch = tx_context::epoch(ctx);
         let investment_value = coin::value(investment);
         let paid = coin::split(investment, investment_value, ctx);
-        // Minimum of 1 spam coin
+        // 最低为1个SUI
         assert!(investment_value >= 1_000_000_000, E_INVALID_AMOUNT);
-        // Check if the main switch is on
+        // 校验总开关是否打开
         assert!(director.paused == false, E_PAUSED);
-        // Get or create the current epoch's game
+        // 获取或创建当前时代的游戏
         let farm_game = get_or_create_epoch_game(director, ctx);
         let farm_users = &mut farm_game.farm_users;
-        // Check if exists
+        // 判断是否存在
         assert!(vec_map::contains(farm_users, &sender) == false, E_NOT_INVOLVED_IN_PLANTING);
         let farm_user = create_farmer(epoch, sender, investment_value);
 
-        // Add user
+        // 添加用户
         farm_users.insert(sender, farm_user);
         farm_game.investments.join(coin::into_balance(paid));
         event::emit(EventPlanting{
@@ -214,43 +216,46 @@ module farm::farm {
         });
     }
 
-    // Steal
+    // 进行偷取
     public entry fun steal(director: &mut Director, rnd: &Random, ctx: &mut TxContext) {
-        // Check if the main switch is on
+        // 校验总开关是否打开
         assert!(director.paused == false, E_PAUSED);
         let epoch = tx_context::epoch(ctx);
         let sender = tx_context::sender(ctx);
 
-        // Get the current epoch's game
+        // 获取当前纪元的游戏
         assert!(director.epoch_games.contains(epoch), E_GAME_DOES_NOT_EXIST);
         let farm_game = director.epoch_games.borrow_mut(epoch);
         let size = farm_game.farm_users.size();
 
         assert!(vec_map::contains(&farm_game.farm_users, &sender), E_NOT_INVOLVED_IN_PLANTING);
-        let farmer = farm_game.farm_users.get_mut(&sender);
-        // Check if already stolen
-        assert!(farmer.steal == false, E_STOLEN);
+        let mut final_rewards = {
+            let farmer = farm_game.farm_users.get(&sender);
+            // 校验是否已经偷取过
+            assert!(farmer.steal == false, E_STOLEN);
+            farmer.rewards
+        };
 
         let mut steal_flag = false;
-        // Randomly get an unstolen crop from the game
-        // Loop
-        let mut i: u64 = 0;
+        // 从游戏随机获取一个未被偷采的农作物
+        // 遍历
+        let mut i = 0;
         while (i < size) {
             let (address, farm_user) = farm_game.farm_users.get_entry_by_idx_mut(i);
 
-            // Filter out self
-            if (address == sender) {
-                i = i + 1;
+            // 过滤掉自己
+            if (*address == sender) {
+                i = i+1;
                 continue
             };
             if (farm_user.crop.stolen == false) {
-                let mut success_rate = 40; // Default success rate is 40%
-                // Calculate own special event
+                let mut success_rate = 40; // 默认成功率为 40%
+                // 计算自己的特殊事件
                 if (farm_user.special_event == DOUBLE_STEAL_SUCCESS) {
                     success_rate = success_rate * 2;
                 };
 
-                // Calculate opponent's special event
+                // 计算对方的特殊事件
                 if (farm_user.special_event == DOUBLE_ANTI_STEAL) {
                     success_rate = success_rate / 2;
                 };
@@ -261,7 +266,7 @@ module farm::farm {
                 if (success_rate == 0) {
                     be_found = true;
                 } else {
-                    // Get a random value
+                    // 获取一个随机值
                     let mut gen = new_generator(rnd, ctx);
                     let random_num = gen.generate_u32_in_range(1, 100);
                     if (random_num > success_rate) {
@@ -269,29 +274,33 @@ module farm::farm {
                     };
                 };
 
-                let my_rewards = farmer.rewards; // Own rewards
-                let other_rewards = farm_user.rewards; // Opponent's rewards
-                // Each divided by half, take the minimum
+                let my_rewards = final_rewards; // 自己的奖励
+                let other_rewards = farm_user.rewards; // 对方的奖励
+                // 各除以一半 取最小值
                 let final_reward = if (my_rewards / 2 < other_rewards / 2) {
                     my_rewards / 2
                 } else {
                     other_rewards / 2
                 };
                 if (be_found) {
-                    // Caught
-                    // Reset rewards
+                    // 被发现
+                    // 重置奖励
+                    // let (_, farm_user) = farm_game.farm_users.get_entry_by_idx_mut(i);
                     farm_user.rewards = farm_user.rewards + final_reward;
-                    farmer.rewards = farmer.rewards - final_reward;
+                    final_rewards = final_rewards - final_reward;
+                    farm_user.crop.stolen = true;
+                    // farmer.rewards = farmer.rewards - final_reward;
                 } else {
-                    // Not caught
-                    // Successful steal
+                    // 未被发现
+                    // 偷取成功
+                    // let (_, farm_user) = farm_game.farm_users.get_entry_by_idx_mut(i);
                     farm_user.rewards = farm_user.rewards - final_reward;
-                    farmer.rewards = farmer.rewards + final_reward;
+                    final_rewards = final_rewards + final_reward;
+                    // farmer.rewards = farmer.rewards + final_reward;
+                    farm_user.crop.stolen = true;
                 };
                 steal_flag = true;
-                farmer.steal = true;
-                farm_user.crop.stolen = true;
-                // Steal event
+                // 偷取事件
                 event::emit(EventSteal {
                     sender,
                     target: *address,
@@ -303,39 +312,43 @@ module farm::farm {
             };
             i = i + 1;
         };
+
+        let farmer = farm_game.farm_users.get_mut(&sender);
+        farmer.steal = true;
+        farmer.rewards = final_rewards;
         assert!(steal_flag == true, E_NOT_EXISTED_AVAILABLE_FARMER);
     }
 
-    // Harvest crops from the previous epoch
+    // 收割上一个纪元的作物
     public entry fun harvest(director: &mut Director, ctx: &mut TxContext) {
-        // Check if participated in the previous epoch
+        // 判断上一个纪元是否参加过
         let pre_epoch = tx_context::epoch(ctx) - 1;
         let sender = tx_context::sender(ctx);
         let farmer = get_farmer_by_epoch(director, pre_epoch, sender);
-        // Check if already harvested
+        // 判断是否已经收割了
         assert!(farmer.crop.harvested == false, E_REPEATED_HARVEST);
 
         let rewards = farmer.rewards;
         let crop_token_reward = farmer.crop.token_reward;
-        // Update rewards
+        // 更新奖励
         farmer.crop.harvested = true;
 
-        // Get the previous epoch's game
+        // 获取上一个纪元的游戏
         let farm_game = get_game_by_epoch(director, pre_epoch);
         let balance_pool = farm_game.balance_pool;
 
-        // Harvest reward
+        // 收割奖励为
         let final_reward = rewards + crop_token_reward;
-        // Distribute reward
-        // Split the coin
-        let investments_balance = balance::split(&mut farm_game.investments, final_reward);
+        // 发放奖励
+        // 拆分币
+        let investments_balance = balance::split(&mut farm_game.investments,final_reward);
         let coin_reward = coin::from_balance(investments_balance, ctx);
-        // Transfer
+        // 进行发放
         transfer::public_transfer(coin_reward, sender);
 
-        // Update balance pool
+        // 更新奖池
         farm_game.balance_pool = balance_pool - final_reward;
-        // Harvest event
+        // 收割事件
         event::emit(EventHarvest{
             sender,
             epoch: pre_epoch,
@@ -343,12 +356,12 @@ module farm::farm {
         });
     }
 
-    // Pause
+    // 暂停
     public entry fun pause(_: &AdminCap, director: &mut Director) {
         director.paused = true;
     }
 
-    // Resume
+    // 恢复
     public entry fun resume(_: &AdminCap, director: &mut Director) {
         director.paused = false;
     }
@@ -360,7 +373,7 @@ module farm::farm {
 
     #[test_only]
     public fun test_init(ctx: &mut TxContext) {
-        init(FARM{}, ctx)
+        init(FARM{ },ctx)
     }
 
 }

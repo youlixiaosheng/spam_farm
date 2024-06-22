@@ -103,3 +103,9 @@ Resumes the game.
 
 
 
+1. sui client publish --gas-budget 600600600 --skip-dependency-verification
+2. 得到  PackageID: 0x940eba4a918db5ba73c3a56560cf657b5ac7d38fc552c2bc553f9f8043e550c9
+3. 得到 AdminCap 0x3b418e0b2e0e6c269afedb743c7468e4288c0105b414e89b34c729a00b6892b4
+4. 得到 Director  0xb654a2d8bc5503fee4d4d97ae6a4e9ff8c6557b68bc0de54f46075a937febcc3
+
+sui client call --package 0x940eba4a918db5ba73c3a56560cf657b5ac7d38fc552c2bc553f9f8043e550c9 --module farm --function get_or_create_epoch_game --args 0xb654a2d8bc5503fee4d4d97ae6a4e9ff8c6557b68bc0de54f46075a937febcc3 --gas-budget 50000000
