@@ -6,7 +6,7 @@ module farm::farm_tests {
     use sui::test_scenario::{Self as ts, next_tx, Scenario};
     use sui::test_utils::assert_eq;
     use sui::transfer;
-
+    use sui::random::{Self, Random};
 
     #[test]
     fun test_farm() {
@@ -48,54 +48,73 @@ module farm::farm_tests {
         // ====================
         //  little_green planting
         // ====================
-        // ts::next_tx(scenario, little_green);
-        // {
-        //     let mut director = ts::take_shared<Director>(scenario);
+        ts::next_tx(scenario, little_green);
+        {
+            let mut director = ts::take_shared<Director>(scenario);
+            let coin_ = coin::mint_for_testing<SUI>(1000_000_000_000, ts::ctx(scenario));
 
-        //     farm::planting(
-        //         &mut director,
-        //         &mut coin::mint_for_testing<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>(1_000_000_000, ts::ctx(scenario)),
-        //         ts::ctx(scenario)
-        //     );
-        //     assert_eq(farm::get_epoch_games(&mut director).size(), 2);
-        //     ts::return_shared(director);
-        // };
+            let advanced_coin = farm::planting(
+                &mut director,
+                coin_,
+                ts::ctx(scenario)
+            );
+            assert_eq(farm::get_epoch_games(&director), 1);
+            ts::return_shared(director);
+            transfer::public_transfer(advanced_coin, little_green);
+        };
 
         // // ====================
         // //  little_black planting
         // // ====================
-        // ts::next_tx(scenario, little_black);
-        // {
-        //     let mut director = ts::take_shared<Director>(scenario);
+        ts::next_tx(scenario, little_black);
+        {
+            let mut director = ts::take_shared<Director>(scenario);
+            let coin_ = coin::mint_for_testing<SUI>(1000_000_000_000, ts::ctx(scenario));
 
-        //     farm::planting(
-        //         &mut director,
-        //         &mut coin::mint_for_testing<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>(2_000_000_000, ts::ctx(scenario)),
-        //         ts::ctx(scenario)
-        //     );
-        //     assert_eq(farm::get_epoch_games(&mut director).size(), 3);
-        //     ts::return_shared(director);
-        // };
+            let advanced_coin = farm::planting(
+                &mut director,
+                coin_,
+                ts::ctx(scenario)
+            );
+            assert_eq(farm::get_epoch_games(&director), 1);
+            ts::return_shared(director);
+            transfer::public_transfer(advanced_coin, little_black);
+        };
 
         // // ====================
         // //  little_blue planting
         // // ====================
-        // ts::next_tx(scenario, little_blue);
-        // {
-        //     let mut director = ts::take_shared<Director>(scenario);
+        ts::next_tx(scenario, little_blue);
+        {
+            let mut director = ts::take_shared<Director>(scenario);
+            let coin_ = coin::mint_for_testing<SUI>(1000_000_000_000, ts::ctx(scenario));
 
-        //     farm::planting(
-        //         &mut director,
-        //         &mut coin::mint_for_testing<0x30a644c3485ee9b604f52165668895092191fcaf5489a846afa7fc11cdb9b24a::spam::SPAM>(3_000_000_000, ts::ctx(scenario)),
-        //         ts::ctx(scenario)
-        //     );
-        //     assert_eq(farm::get_epoch_games(&mut director).size(), 4);
-        //     ts::return_shared(director);
-        // };
+            let advanced_coin = farm::planting(
+                &mut director,
+                coin_,
+                ts::ctx(scenario)
+            );
+            assert_eq(farm::get_epoch_games(&director), 1);
+            ts::return_shared(director);
+            transfer::public_transfer(advanced_coin, little_blue);
+        };
+
+        ts::next_tx(scenario, little_red);
+        {
+            let mut director = ts::take_shared<Director>(scenario);
+            random::create_for_testing(ts::ctx(scenario));
+            let random_ = ts::take_shared<Random>(scenario);
+
+            farm::steal(
+                &mut director,
+                &random_,
+                ts::ctx(scenario)
+            );
+            assert_eq(farm::get_epoch_games(&director), 1);
+            ts::return_shared(director);
+            ts::return_shared(random_);
+        };
 
         ts::end(scenario_val);
-
-
     }
-
 }
