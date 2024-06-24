@@ -1,5 +1,4 @@
 module farm::farm {
-
     use std::ascii::{String, string};
     use sui::sui::SUI;
     use sui::coin::{Self, Coin};
@@ -7,8 +6,7 @@ module farm::farm {
     use sui::event;
     use sui::package;
     use sui::random::{Random, new_generator};
-    use sui::table;
-    use sui::table::Table;
+    use sui::table::{Self, Table};
     use sui::vec_map;
     use sui::vec_map::VecMap;
 
@@ -185,15 +183,15 @@ module farm::farm {
     }
 
     // 进行种植
-    public entry fun planting(
+    public fun planting(
         director: &mut Director,
-        investment: &mut Coin<SUI>,
-        ctx: &mut TxContext)
+        mut investment: Coin<SUI>,
+        ctx: &mut TxContext) : Coin<SUI>
     {
         let sender = tx_context::sender(ctx);
         let epoch = tx_context::epoch(ctx);
-        let investment_value = coin::value(investment);
-        let paid = coin::split(investment, investment_value, ctx);
+        let investment_value = coin::value(&investment);
+        let paid = coin::split(&mut investment, investment_value, ctx);
         // 最低为1个SUI
         assert!(investment_value >= 1_000_000_000, E_INVALID_AMOUNT);
         // 校验总开关是否打开
@@ -214,6 +212,7 @@ module farm::farm {
             investment_value,
             balance: investment_value
         });
+        investment
     }
 
     // 进行偷取
@@ -367,8 +366,8 @@ module farm::farm {
     }
 
     #[test_only]
-    public fun get_epoch_games(director: &mut Director): &Table<u64, FarmGame> {
-        &director.epoch_games
+    public fun get_epoch_games(director: &Director) : u64 {
+        director.epoch_games.length()
     }
 
     #[test_only]
